@@ -1,0 +1,48 @@
+1. Subir os containers
+
+docker compose up -d
+Aguarde ~30s até todos os serviços ficarem healthy.
+
+2. Instalar dependências no container app
+
+docker compose exec app pip install -r requirements.txt -q
+3. Popular o MongoDB
+
+docker compose exec app python seed_radar_combustivel.py
+Leva ~2-3 minutos. Insere 500K documentos no total.
+
+4. Rodar o pipeline (deixar rodando em outro terminal)
+
+docker compose exec app python pipeline/pipeline_radar.py
+Leva ~40s no batch. Depois fica aguardando eventos (Change Stream). Não feche esse terminal.
+
+5. Acessar o dashboard
+Abra no navegador: http://localhost:8501
+
+Se o Streamlit ainda estiver instalando dependências, aguarde 1-2 minutos e recarregue.
+
+Extras (opcionais)
+MongoDB Compass — para inspecionar os dados:
+
+
+mongodb://localhost:27017/?directConnection=true
+RedisInsight — para inspecionar as chaves Redis:
+
+
+http://localhost:8001
+redis-cli — para testar consultas manualmente:
+
+
+docker compose exec redis redis-cli
+
+# dentro do redis-cli:
+ZRANGE ranking:preco:GASOLINA_COMUM:SP 0 9 WITHSCORES
+ZREVRANGE ranking:buscas 0 9 WITHSCORES
+HGETALL stats:preco_medio
+GEOSEARCH geo:postos FROMLONLAT -46.6333 -23.5505 BYRADIUS 50 km ASC COUNT 5
+TS.RANGE ts:preco_avg:GASOLINA_COMUM:SP - +
+Se precisar recomeçar do zero
+
+docker compose down -v
+docker compose up -d
+E repita os passos 2 a 4.

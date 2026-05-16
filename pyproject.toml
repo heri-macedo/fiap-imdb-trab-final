@@ -1,0 +1,22 @@
+[project]
+name = "lab-streaming-mongo-redis"
+version = "0.1.0"
+description = "Pipeline MongoDB → Redis — Plataforma Radar Combustível"
+requires-python = ">=3.11"
+dependencies = [
+    "pymongo>=4.6.0",
+    "redis>=5.0.0",
+    "faker>=24.0.0",
+    "python-dotenv>=1.0.0",
+    "streamlit>=1.32.0",
+    "plotly>=5.20.0",
+    "pandas>=2.0.0",
+    "python-docx>=1.2.0",
+]
+
+[project.scripts]
+seed = "seed_radar_combustivel:main"
+pipeline = "pipeline.pipeline_radar:main"
+
+[tool.uv]
+dev-dependencies = []

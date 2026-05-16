@@ -85,7 +85,8 @@ def posto_info(r: Redis, posto_id: str) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Páginas
+# Páginas — sem @st.fragment aqui; o decorator run_every é aplicado no
+# dispatch principal para que o intervalo seja configurável pelo sidebar.
 # ---------------------------------------------------------------------------
 
 
@@ -458,10 +459,8 @@ st.caption(
     "Dados servidos pela camada **Redis**, alimentados via pipeline **MongoDB → Redis**."
 )
 
-auto_refresh = st.sidebar.toggle("Auto-refresh", value=False)
-refresh_s = st.sidebar.number_input(
-    "Intervalo (s)", min_value=10, max_value=300, value=30
-)
+auto_refresh = st.sidebar.toggle("Auto-refresh", value=True)
+refresh_s = st.sidebar.number_input("Intervalo (s)", min_value=3, max_value=60, value=5)
 
 page = st.sidebar.radio(
     "Painel",
@@ -482,19 +481,17 @@ except Exception as exc:
     st.error(f"Não foi possível conectar ao Redis ({REDIS_HOST}:{REDIS_PORT}): {exc}")
     st.stop()
 
-if page == "📊 Resumo Global":
-    page_resumo(r)
-elif page == "⛽ Rankings de Preço":
-    page_rankings(r)
-elif page == "🔍 Volume de Buscas":
-    page_buscas(r)
-elif page == "📈 Variação de Preço":
-    page_variacao(r)
-elif page == "🕐 Série Temporal":
-    page_timeseries(r)
-elif page == "🗺️ Busca Geográfica":
-    page_geo(r)
+# run_every=None desativa o auto-refresh sem alterar a estrutura do fragmento.
+run_every = int(refresh_s) if auto_refresh else None
 
-if auto_refresh:
-    time.sleep(int(refresh_s))
-    st.rerun()
+PAGE_MAP = {
+    "📊 Resumo Global": page_resumo,
+    "⛽ Rankings de Preço": page_rankings,
+    "🔍 Volume de Buscas": page_buscas,
+    "📈 Variação de Preço": page_variacao,
+    "🕐 Série Temporal": page_timeseries,
+    "🗺️ Busca Geográfica": page_geo,
+}
+
+if page in PAGE_MAP:
+    st.fragment(run_every=run_every)(PAGE_MAP[page])(r)

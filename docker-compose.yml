@@ -36,24 +36,21 @@ services:
       timeout: 5s
       retries: 10
 
-  app:
+  seed:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: lab-app
+    container_name: lab-seed
     working_dir: /workspace
     volumes:
       - ./:/workspace
     environment:
       - MONGO_URI=mongodb://mongo:27017/?directConnection=true
       - MONGO_DB=radar_combustivel
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    command: ["sleep", "infinity"]
+    command: ["python", "seed/seed_radar_combustivel.py"]
+    restart: "no"
     depends_on:
       mongo:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   streamlit:
@@ -81,6 +78,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      seed:
+        condition: service_completed_successfully
 
 volumes:
   mongo_data:

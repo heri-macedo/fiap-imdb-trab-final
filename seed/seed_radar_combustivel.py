@@ -257,15 +257,10 @@ def main() -> int:
 
     db = client[db_name]
 
-    # Limpa coleções para reexecução idempotente do seed
-    for name in (
-        "postos",
-        "eventos_preco",
-        "buscas_usuarios",
-        "avaliacoes_interacoes",
-        "localizacoes_postos",
-    ):
-        db[name].drop()
+    if db.postos.estimated_document_count() > 0:
+        print("Dados já existem — seed ignorado.")
+        client.close()
+        return 0
 
     print("Gerando IDs de postos e documentos...")
     posto_ids = [ObjectId() for _ in range(n_target)]

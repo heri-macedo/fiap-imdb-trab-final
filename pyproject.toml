@@ -19,4 +19,6 @@ seed = "seed_radar_combustivel:main"
 pipeline = "pipeline.pipeline_radar:main"
 
 [tool.uv]
-dev-dependencies = []
+dev-dependencies = [
+    "black>=26.5.0",
+]

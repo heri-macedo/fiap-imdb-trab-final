@@ -128,7 +128,9 @@ def doc_posto(fake: Faker, oid: ObjectId) -> dict[str, Any]:
         "telefone": fake.phone_number()[:20],
         "ativo": random.random() > 0.03,
         "location": geo,
-        "created_at": fake.date_time_between(start_date="-5y", end_date="now", tzinfo=timezone.utc),
+        "created_at": fake.date_time_between(
+            start_date="-5y", end_date="now", tzinfo=timezone.utc
+        ),
         "updated_at": utc_now(),
     }
 
@@ -141,14 +143,18 @@ def doc_evento_preco(
     comb = random.choice(COMBUSTIVEIS)
     preco_novo = round(random.uniform(4.5, 8.9), 3)
     preco_ant = round(max(3.0, preco_novo + random.uniform(-0.8, 0.8)), 3)
-    ocorrido = fake.date_time_between(start_date="-90d", end_date="now", tzinfo=timezone.utc)
+    ocorrido = fake.date_time_between(
+        start_date="-90d", end_date="now", tzinfo=timezone.utc
+    )
     return {
         "_id": ObjectId(),
         "posto_id": posto_id,
         "combustivel": comb,
         "preco_anterior": preco_ant,
         "preco_novo": preco_novo,
-        "variacao_pct": round((preco_novo - preco_ant) / preco_ant * 100, 4) if preco_ant else 0.0,
+        "variacao_pct": (
+            round((preco_novo - preco_ant) / preco_ant * 100, 4) if preco_ant else 0.0
+        ),
         "unidade": "BRL_L",
         "fonte": random.choice(("app_usuario", "api_anp", "operador_posto", "crawler")),
         "ocorrido_em": ocorrido,
@@ -170,13 +176,17 @@ def doc_busca(fake: Faker) -> dict[str, Any]:
             "ordenacao": random.choice(("preco", "distancia", "avaliacao")),
         },
         "geo_centro": make_fake_geo(fake),
-        "consultado_em": fake.date_time_between(start_date="-180d", end_date="now", tzinfo=timezone.utc),
+        "consultado_em": fake.date_time_between(
+            start_date="-180d", end_date="now", tzinfo=timezone.utc
+        ),
         "resultado_count": random.randint(0, 120),
         "latencia_ms": random.randint(8, 450),
     }
 
 
-def doc_avaliacao_interacao(fake: Faker, posto_ids: Sequence[ObjectId]) -> dict[str, Any]:
+def doc_avaliacao_interacao(
+    fake: Faker, posto_ids: Sequence[ObjectId]
+) -> dict[str, Any]:
     tipo = random.choice(TIPOS_INTERACAO)
     nota = random.randint(1, 5) if tipo == "avaliacao" else None
     return {
@@ -185,8 +195,14 @@ def doc_avaliacao_interacao(fake: Faker, posto_ids: Sequence[ObjectId]) -> dict[
         "usuario_id": fake.uuid4(),
         "tipo": tipo,
         "nota": nota,
-        "comentario": fake.text(max_nb_chars=180) if tipo == "avaliacao" and random.random() > 0.4 else None,
-        "created_at": fake.date_time_between(start_date="-2y", end_date="now", tzinfo=timezone.utc),
+        "comentario": (
+            fake.text(max_nb_chars=180)
+            if tipo == "avaliacao" and random.random() > 0.4
+            else None
+        ),
+        "created_at": fake.date_time_between(
+            start_date="-2y", end_date="now", tzinfo=timezone.utc
+        ),
         "util_count": random.randint(0, 42) if tipo == "avaliacao" else 0,
     }
 
@@ -200,7 +216,11 @@ def doc_localizacao_posto(
         "_id": ObjectId(),
         "posto_id": posto_id,
         "municipio": fake.city(),
-        "bairro": fake.bairro() if hasattr(fake, "bairro") else f"Bairro {random.randint(1, 200)}",
+        "bairro": (
+            fake.bairro()
+            if hasattr(fake, "bairro")
+            else f"Bairro {random.randint(1, 200)}"
+        ),
         "uf": random.choice(UFS),
         "codigo_ibge": str(random.randint(1100000, 5300000)),
         "geo": geo,
@@ -215,12 +235,18 @@ def doc_localizacao_posto(
 
 def ensure_indexes(db) -> None:
     db.postos.create_index([("location", GEOSPHERE)])
-    db.postos.create_index([("endereco.estado", ASCENDING), ("endereco.cidade", ASCENDING)])
+    db.postos.create_index(
+        [("endereco.estado", ASCENDING), ("endereco.cidade", ASCENDING)]
+    )
     db.eventos_preco.create_index([("posto_id", ASCENDING), ("ocorrido_em", ASCENDING)])
-    db.eventos_preco.create_index([("combustivel", ASCENDING), ("ocorrido_em", ASCENDING)])
+    db.eventos_preco.create_index(
+        [("combustivel", ASCENDING), ("ocorrido_em", ASCENDING)]
+    )
     db.buscas_usuarios.create_index([("consultado_em", ASCENDING)])
     db.buscas_usuarios.create_index([("estado", ASCENDING), ("cidade", ASCENDING)])
-    db.avaliacoes_interacoes.create_index([("posto_id", ASCENDING), ("created_at", ASCENDING)])
+    db.avaliacoes_interacoes.create_index(
+        [("posto_id", ASCENDING), ("created_at", ASCENDING)]
+    )
     db.localizacoes_postos.create_index([("posto_id", ASCENDING)], unique=True)
     db.localizacoes_postos.create_index([("geo", GEOSPHERE)])
 
@@ -235,7 +261,9 @@ def insert_batches(col: Collection, docs: List[dict[str, Any]], batch_size: int)
 
 
 def main() -> int:
-    mongo_uri = os.environ.get("MONGO_URI", "mongodb://mongo:27017/?directConnection=true")
+    mongo_uri = os.environ.get(
+        "MONGO_URI", "mongodb://mongo:27017/?directConnection=true"
+    )
     db_name = os.environ.get("DB_NAME", "radar_combustivel")
     seed = int(os.environ.get("SEED", "42"))
     batch_size = int(os.environ.get("BATCH_SIZE", "5000"))
@@ -294,13 +322,16 @@ def main() -> int:
     print("Criando índices...")
     ensure_indexes(db)
 
-    total = sum(db[c].estimated_document_count() for c in (
-        "postos",
-        "eventos_preco",
-        "buscas_usuarios",
-        "avaliacoes_interacoes",
-        "localizacoes_postos",
-    ))
+    total = sum(
+        db[c].estimated_document_count()
+        for c in (
+            "postos",
+            "eventos_preco",
+            "buscas_usuarios",
+            "avaliacoes_interacoes",
+            "localizacoes_postos",
+        )
+    )
     print(f"Concluído. Total aproximado de documentos: {total}")
     client.close()
     return 0

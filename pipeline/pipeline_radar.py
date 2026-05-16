@@ -62,6 +62,7 @@ COMBUSTIVEIS = (
 # Conexões
 # ---------------------------------------------------------------------------
 
+
 def get_mongo() -> MongoClient:
     return MongoClient(MONGO_URI, serverSelectionTimeoutMS=15_000)
 
@@ -74,12 +75,18 @@ def get_redis() -> Redis:
 # TimeSeries helper
 # ---------------------------------------------------------------------------
 
-def ts_add(r: Redis, key: str, ts_ms: int, value: float, labels: dict[str, str]) -> None:
+
+def ts_add(
+    r: Redis, key: str, ts_ms: int, value: float, labels: dict[str, str]
+) -> None:
     try:
         r.execute_command("TS.ADD", key, ts_ms, value, "ON_DUPLICATE", "LAST")
     except ResponseError as exc:
         msg = str(exc).lower()
-        if "key does not exist" not in msg and "tsdb: the key does not exist" not in msg:
+        if (
+            "key does not exist" not in msg
+            and "tsdb: the key does not exist" not in msg
+        ):
             raise
         args = ["TS.CREATE", key, "RETENTION", 0, "DUPLICATE_POLICY", "LAST", "LABELS"]
         for k, v in labels.items():
@@ -92,6 +99,7 @@ def ts_add(r: Redis, key: str, ts_ms: int, value: float, labels: dict[str, str])
 # Fase batch — funções por estrutura
 # ---------------------------------------------------------------------------
 
+
 def batch_postos(db, r: Redis) -> int:
     """
     HASH posto:{id}  →  nome, bandeira, cidade, uf, ativo
@@ -103,8 +111,14 @@ def batch_postos(db, r: Redis) -> int:
     n = 0
     for posto in db.postos.find(
         {},
-        {"nome_fantasia": 1, "bandeira": 1, "endereco.cidade": 1,
-         "endereco.estado": 1, "ativo": 1, "location": 1},
+        {
+            "nome_fantasia": 1,
+            "bandeira": 1,
+            "endereco.cidade": 1,
+            "endereco.estado": 1,
+            "ativo": 1,
+            "location": 1,
+        },
     ):
         pid = str(posto["_id"])
         r.hset(
@@ -271,8 +285,13 @@ def batch_timeseries(db, r: Redis) -> None:
             continue
         ts_ms = int(ts_dt.timestamp() * 1000)
         preco_avg = float(row["preco_avg"])
-        ts_add(r, f"ts:preco_avg:{comb}:{uf}", ts_ms, preco_avg,
-               {"combustivel": comb, "uf": uf})
+        ts_add(
+            r,
+            f"ts:preco_avg:{comb}:{uf}",
+            ts_ms,
+            preco_avg,
+            {"combustivel": comb, "uf": uf},
+        )
         n += 1
 
     log.info("[batch_timeseries] %d pontos → TS ts:preco_avg:*", n)
@@ -305,7 +324,10 @@ def batch_stats_globais(db, r: Redis) -> None:
     if mapping:
         r.hset("stats:preco_medio", mapping=mapping)
 
-    log.info("[batch_stats_globais] stats:preco_medio atualizado (%d combustiveis)", len(mapping) // 4)
+    log.info(
+        "[batch_stats_globais] stats:preco_medio atualizado (%d combustiveis)",
+        len(mapping) // 4,
+    )
 
 
 def run_batch(db, r: Redis) -> None:
@@ -326,6 +348,7 @@ def run_batch(db, r: Redis) -> None:
 # ---------------------------------------------------------------------------
 # Fase stream — Change Stream em eventos_preco
 # ---------------------------------------------------------------------------
+
 
 def handle_novo_evento(r: Redis, doc: dict[str, Any]) -> None:
     """Atualiza rankings e TimeSeries em tempo real para um novo evento de preço."""
@@ -373,10 +396,13 @@ def run_change_stream(db, r: Redis) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Pipeline MongoDB → Redis — Radar Combustível")
+    parser = argparse.ArgumentParser(
+        description="Pipeline MongoDB → Redis — Radar Combustível"
+    )
     parser.add_argument(
         "--batch-only",
         action="store_true",

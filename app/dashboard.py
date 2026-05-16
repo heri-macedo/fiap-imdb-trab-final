@@ -61,12 +61,18 @@ def get_redis() -> Redis:
 
 def posto_info(r: Redis, posto_id: str) -> dict[str, str]:
     data = r.hgetall(f"posto:{posto_id}")
-    return data or {"nome": posto_id[:12] + "...", "bandeira": "-", "cidade": "-", "uf": "-"}
+    return data or {
+        "nome": posto_id[:12] + "...",
+        "bandeira": "-",
+        "cidade": "-",
+        "uf": "-",
+    }
 
 
 # ---------------------------------------------------------------------------
 # Páginas
 # ---------------------------------------------------------------------------
+
 
 def page_resumo(r: Redis) -> None:
     st.header("Resumo Global de Preços")
@@ -74,7 +80,9 @@ def page_resumo(r: Redis) -> None:
     mapping = r.hgetall("stats:preco_medio")
     if not mapping:
         st.warning("Sem dados em `stats:preco_medio`. Execute o pipeline primeiro.")
-        st.code("docker compose exec app python pipeline/pipeline_radar.py --batch-only")
+        st.code(
+            "docker compose exec app python pipeline/pipeline_radar.py --batch-only"
+        )
         return
 
     rows = []
@@ -84,13 +92,15 @@ def page_resumo(r: Redis) -> None:
         mx = mapping.get(f"{comb}:max")
         count = mapping.get(f"{comb}:count", "0")
         if avg:
-            rows.append({
-                "Combustível": comb.replace("_", " ").title(),
-                "Mínimo (R$/L)": float(mn),
-                "Médio (R$/L)": float(avg),
-                "Máximo (R$/L)": float(mx),
-                "Eventos": int(count),
-            })
+            rows.append(
+                {
+                    "Combustível": comb.replace("_", " ").title(),
+                    "Mínimo (R$/L)": float(mn),
+                    "Médio (R$/L)": float(avg),
+                    "Máximo (R$/L)": float(mx),
+                    "Eventos": int(count),
+                }
+            )
 
     if not rows:
         st.info("Dados ainda não disponíveis.")
@@ -101,7 +111,9 @@ def page_resumo(r: Redis) -> None:
     col1, col2, col3 = st.columns(3)
     gaso = df[df["Combustível"] == "Gasolina Comum"]
     if not gaso.empty:
-        col1.metric("Gasolina Comum (média)", f"R$ {gaso['Médio (R$/L)'].values[0]:.3f}")
+        col1.metric(
+            "Gasolina Comum (média)", f"R$ {gaso['Médio (R$/L)'].values[0]:.3f}"
+        )
     etanol = df[df["Combustível"] == "Etanol"]
     if not etanol.empty:
         col2.metric("Etanol (média)", f"R$ {etanol['Médio (R$/L)'].values[0]:.3f}")
@@ -148,12 +160,14 @@ def page_rankings(r: Redis) -> None:
     rows = []
     for posto_id, preco in raw:
         info = posto_info(r, posto_id)
-        rows.append({
-            "Posto": info.get("nome", posto_id)[:35],
-            "Bandeira": info.get("bandeira", "-"),
-            "Cidade": info.get("cidade", "-"),
-            "Preço (R$/L)": round(preco, 3),
-        })
+        rows.append(
+            {
+                "Posto": info.get("nome", posto_id)[:35],
+                "Bandeira": info.get("bandeira", "-"),
+                "Cidade": info.get("cidade", "-"),
+                "Preço (R$/L)": round(preco, 3),
+            }
+        )
 
     df = pd.DataFrame(rows)
     df.index = df.index + 1
@@ -168,7 +182,9 @@ def page_rankings(r: Redis) -> None:
     )
     fig.update_layout(yaxis={"categoryorder": "total ascending"})
     st.plotly_chart(fig, use_container_width=True)
-    st.dataframe(df[["Posto", "Bandeira", "Cidade", "Preço (R$/L)"]], use_container_width=True)
+    st.dataframe(
+        df[["Posto", "Bandeira", "Cidade", "Preço (R$/L)"]], use_container_width=True
+    )
 
 
 def page_buscas(r: Redis) -> None:
@@ -227,13 +243,15 @@ def page_variacao(r: Redis) -> None:
     rows = []
     for posto_id, variacao_abs in raw:
         info = posto_info(r, posto_id)
-        rows.append({
-            "Posto": info.get("nome", posto_id)[:35],
-            "Bandeira": info.get("bandeira", "-"),
-            "Cidade": info.get("cidade", "-"),
-            "UF": info.get("uf", "-"),
-            "Variação |%|": round(variacao_abs, 2),
-        })
+        rows.append(
+            {
+                "Posto": info.get("nome", posto_id)[:35],
+                "Bandeira": info.get("bandeira", "-"),
+                "Cidade": info.get("cidade", "-"),
+                "UF": info.get("uf", "-"),
+                "Variação |%|": round(variacao_abs, 2),
+            }
+        )
 
     df = pd.DataFrame(rows)
 
@@ -292,7 +310,9 @@ def page_timeseries(r: Redis) -> None:
     fig.update_traces(line_color="#FF6B35")
     st.plotly_chart(fig, use_container_width=True)
     st.dataframe(
-        df[["Data", "preco_avg"]].rename(columns={"preco_avg": "Preço Médio (R$/L)"}).tail(30),
+        df[["Data", "preco_avg"]]
+        .rename(columns={"preco_avg": "Preço Médio (R$/L)"})
+        .tail(30),
         use_container_width=True,
         hide_index=True,
     )
@@ -303,7 +323,9 @@ def page_geo(r: Redis) -> None:
 
     col1, col2 = st.columns(2)
     with col1:
-        cidade_ref = st.selectbox("Cidade de referência", list(CIDADES_REFERENCIA.keys()))
+        cidade_ref = st.selectbox(
+            "Cidade de referência", list(CIDADES_REFERENCIA.keys())
+        )
         lng, lat = CIDADES_REFERENCIA[cidade_ref]
     with col2:
         raio_km = st.slider("Raio de busca (km)", 5, 200, 50)
@@ -335,15 +357,17 @@ def page_geo(r: Redis) -> None:
         distancia = round(float(item[1]), 2)
         coord = item[2]
         info = posto_info(r, pid)
-        rows.append({
-            "Posto": info.get("nome", pid)[:35],
-            "Bandeira": info.get("bandeira", "-"),
-            "Cidade": info.get("cidade", "-"),
-            "UF": info.get("uf", "-"),
-            "Distância (km)": distancia,
-            "lat": float(coord[1]),
-            "lon": float(coord[0]),
-        })
+        rows.append(
+            {
+                "Posto": info.get("nome", pid)[:35],
+                "Bandeira": info.get("bandeira", "-"),
+                "Cidade": info.get("cidade", "-"),
+                "UF": info.get("uf", "-"),
+                "Distância (km)": distancia,
+                "lat": float(coord[1]),
+                "lon": float(coord[0]),
+            }
+        )
 
     df = pd.DataFrame(rows)
     st.metric(f"Postos encontrados em {raio_km} km de {cidade_ref}", len(df))
@@ -372,7 +396,9 @@ st.caption(
 )
 
 auto_refresh = st.sidebar.toggle("Auto-refresh", value=False)
-refresh_s = st.sidebar.number_input("Intervalo (s)", min_value=10, max_value=300, value=30)
+refresh_s = st.sidebar.number_input(
+    "Intervalo (s)", min_value=10, max_value=300, value=30
+)
 
 page = st.sidebar.radio(
     "Painel",

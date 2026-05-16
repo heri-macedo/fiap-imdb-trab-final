@@ -84,21 +84,51 @@ BR_LAT_RANGE = (-33.8, 5.3)
 
 
 def utc_now() -> datetime:
+    """Retorna o datetime atual com timezone UTC.
+
+    Returns:
+        datetime: Instância de ``datetime`` com ``tzinfo=UTC``.
+    """
     return datetime.now(timezone.utc)
 
 
 def chunked(seq: Sequence[Any], size: int) -> Iterable[List[Any]]:
+    """Divide uma sequência em lotes de tamanho fixo.
+
+    Args:
+        seq (Sequence[Any]): Sequência a ser dividida.
+        size (int): Tamanho máximo de cada lote.
+
+    Yields:
+        List[Any]: Lote com até ``size`` elementos.
+    """
     for i in range(0, len(seq), size):
         yield list(seq[i : i + size])
 
 
 def make_fake_geo(fake: Faker) -> dict[str, Any]:
+    """Gera um ponto GeoJSON aleatório dentro do bounding box do Brasil.
+
+    Args:
+        fake (Faker): Instância do Faker (não utilizada diretamente, mantida por consistência de assinatura).
+
+    Returns:
+        dict[str, Any]: Documento GeoJSON ``{"type": "Point", "coordinates": [lng, lat]}``.
+    """
     lng = random.uniform(*BR_LNG_RANGE)
     lat = random.uniform(*BR_LAT_RANGE)
     return {"type": "Point", "coordinates": [round(lng, 6), round(lat, 6)]}
 
 
 def cnpj_like(fake: Faker) -> str:
+    """Gera uma string no formato de CNPJ com dígitos aleatórios (sem validação fiscal).
+
+    Args:
+        fake (Faker): Instância do Faker (não utilizada diretamente).
+
+    Returns:
+        str: String no formato ``XX.XXX.XXX/XXXX-XX``.
+    """
     digits = "".join(str(random.randint(0, 9)) for _ in range(14))
     return f"{digits[:2]}.{digits[2:5]}.{digits[5:8]}/{digits[8:12]}-{digits[12:14]}"
 
@@ -109,6 +139,15 @@ def cnpj_like(fake: Faker) -> str:
 
 
 def doc_posto(fake: Faker, oid: ObjectId) -> dict[str, Any]:
+    """Gera um documento fake para a coleção ``postos``.
+
+    Args:
+        fake (Faker): Instância do Faker configurada com locale ``pt_BR``.
+        oid (ObjectId): ObjectId pré-gerado para uso como ``_id``.
+
+    Returns:
+        dict[str, Any]: Documento MongoDB representando um posto de combustível.
+    """
     cidade = fake.city()
     estado = random.choice(UFS)
     geo = make_fake_geo(fake)
@@ -139,6 +178,15 @@ def doc_evento_preco(
     fake: Faker,
     posto_ids: Sequence[ObjectId],
 ) -> dict[str, Any]:
+    """Gera um documento fake para a coleção ``eventos_preco``.
+
+    Args:
+        fake (Faker): Instância do Faker configurada com locale ``pt_BR``.
+        posto_ids (Sequence[ObjectId]): Lista de IDs de postos existentes para referência.
+
+    Returns:
+        dict[str, Any]: Documento MongoDB representando uma atualização de preço.
+    """
     posto_id = random.choice(posto_ids)
     comb = random.choice(COMBUSTIVEIS)
     preco_novo = round(random.uniform(4.5, 8.9), 3)
@@ -163,6 +211,14 @@ def doc_evento_preco(
 
 
 def doc_busca(fake: Faker) -> dict[str, Any]:
+    """Gera um documento fake para a coleção ``buscas_usuarios``.
+
+    Args:
+        fake (Faker): Instância do Faker configurada com locale ``pt_BR``.
+
+    Returns:
+        dict[str, Any]: Documento MongoDB representando uma busca realizada por um usuário.
+    """
     return {
         "_id": ObjectId(),
         "usuario_id": fake.uuid4(),
@@ -187,6 +243,15 @@ def doc_busca(fake: Faker) -> dict[str, Any]:
 def doc_avaliacao_interacao(
     fake: Faker, posto_ids: Sequence[ObjectId]
 ) -> dict[str, Any]:
+    """Gera um documento fake para a coleção ``avaliacoes_interacoes``.
+
+    Args:
+        fake (Faker): Instância do Faker configurada com locale ``pt_BR``.
+        posto_ids (Sequence[ObjectId]): Lista de IDs de postos existentes para referência.
+
+    Returns:
+        dict[str, Any]: Documento MongoDB representando uma avaliação ou interação de usuário.
+    """
     tipo = random.choice(TIPOS_INTERACAO)
     nota = random.randint(1, 5) if tipo == "avaliacao" else None
     return {
@@ -211,6 +276,15 @@ def doc_localizacao_posto(
     fake: Faker,
     posto_id: ObjectId,
 ) -> dict[str, Any]:
+    """Gera um documento fake para a coleção ``localizacoes_postos``.
+
+    Args:
+        fake (Faker): Instância do Faker configurada com locale ``pt_BR``.
+        posto_id (ObjectId): ID do posto ao qual esta localização pertence.
+
+    Returns:
+        dict[str, Any]: Documento MongoDB com dados geográficos e administrativos do posto.
+    """
     geo = make_fake_geo(fake)
     return {
         "_id": ObjectId(),
@@ -234,6 +308,11 @@ def doc_localizacao_posto(
 
 
 def ensure_indexes(db) -> None:
+    """Cria os índices necessários para o pipeline e consultas no MongoDB.
+
+    Args:
+        db: Banco de dados MongoDB (objeto ``Database`` do PyMongo).
+    """
     db.postos.create_index([("location", GEOSPHERE)])
     db.postos.create_index(
         [("endereco.estado", ASCENDING), ("endereco.cidade", ASCENDING)]

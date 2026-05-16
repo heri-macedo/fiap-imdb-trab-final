@@ -64,10 +64,20 @@ COMBUSTIVEIS = (
 
 
 def get_mongo() -> MongoClient:
+    """Cria e retorna uma conexão com o MongoDB.
+
+    Returns:
+        MongoClient: Cliente MongoDB conectado ao URI configurado.
+    """
     return MongoClient(MONGO_URI, serverSelectionTimeoutMS=15_000)
 
 
 def get_redis() -> Redis:
+    """Cria e retorna uma conexão com o Redis.
+
+    Returns:
+        Redis: Cliente Redis conectado ao host e porta configurados.
+    """
     return Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 
@@ -79,6 +89,15 @@ def get_redis() -> Redis:
 def ts_add(
     r: Redis, key: str, ts_ms: int, value: float, labels: dict[str, str]
 ) -> None:
+    """Insere um ponto em uma série temporal Redis, criando a chave se não existir.
+
+    Args:
+        r (Redis): Cliente Redis ativo.
+        key (str): Nome da chave TimeSeries (ex: ``ts:preco_avg:ETANOL:SP``).
+        ts_ms (int): Timestamp em milissegundos.
+        value (float): Valor a ser inserido.
+        labels (dict[str, str]): Labels associadas à série (ex: ``{"combustivel": "ETANOL", "uf": "SP"}``).
+    """
     try:
         r.execute_command("TS.ADD", key, ts_ms, value, "ON_DUPLICATE", "LAST")
     except ResponseError as exc:
@@ -101,9 +120,17 @@ def ts_add(
 
 
 def batch_postos(db, r: Redis) -> int:
-    """
-    HASH posto:{id}  →  nome, bandeira, cidade, uf, ativo
-    GEO  geo:postos  →  lng/lat de cada posto
+    """Popula os HASHes de cadastro de postos e o índice GEO no Redis.
+
+    Para cada posto na coleção MongoDB, cria um HASH ``posto:{id}`` com dados
+    resumidos e adiciona as coordenadas ao índice ``geo:postos`` em lotes de 500.
+
+    Args:
+        db: Banco de dados MongoDB (objeto ``Database`` do PyMongo).
+        r (Redis): Cliente Redis ativo.
+
+    Returns:
+        int: Total de postos processados.
     """
     r.delete("geo:postos")
 
@@ -150,10 +177,15 @@ def batch_postos(db, r: Redis) -> int:
 
 
 def batch_rankings_preco(db, r: Redis) -> None:
-    """
-    ZSET ranking:preco:{combustivel}:{uf}
-    Score = preço mais recente; menor score = mais barato.
-    Usa o hash posto:{id} (já populado) para resolver a UF.
+    """Popula os rankings de menor preço por combustível e UF no Redis.
+
+    Agrega ``eventos_preco`` por posto e combustível, seleciona o preço mais
+    recente e insere em ``ranking:preco:{combustivel}:{uf}`` (ZSET, score=preço).
+    Usa ``HGET posto:{id} uf`` para resolver o estado sem novo acesso ao MongoDB.
+
+    Args:
+        db: Banco de dados MongoDB (objeto ``Database`` do PyMongo).
+        r (Redis): Cliente Redis ativo.
     """
     # Apaga chaves antigas
     for key in r.scan_iter("ranking:preco:*"):
@@ -182,8 +214,14 @@ def batch_rankings_preco(db, r: Redis) -> None:
 
 
 def batch_rankings_buscas(db, r: Redis) -> None:
-    """
-    ZSET ranking:buscas  →  member="cidade|uf", score=contagem de buscas
+    """Popula o ranking de cidades por volume de buscas no Redis.
+
+    Agrega ``buscas_usuarios`` por cidade e estado e insere em ``ranking:buscas``
+    (ZSET, member=``"cidade|uf"``, score=contagem de buscas).
+
+    Args:
+        db: Banco de dados MongoDB (objeto ``Database`` do PyMongo).
+        r (Redis): Cliente Redis ativo.
     """
     r.delete("ranking:buscas")
 
@@ -208,8 +246,14 @@ def batch_rankings_buscas(db, r: Redis) -> None:
 
 
 def batch_rankings_variacao(db, r: Redis) -> None:
-    """
-    ZSET ranking:variacao:{combustivel}  →  score=|variacao_pct| mais recente
+    """Popula os rankings de variação de preço por combustível no Redis.
+
+    Agrega ``eventos_preco`` por posto e combustível e insere em
+    ``ranking:variacao:{combustivel}`` (ZSET, score=variação percentual absoluta).
+
+    Args:
+        db: Banco de dados MongoDB (objeto ``Database`` do PyMongo).
+        r (Redis): Cliente Redis ativo.
     """
     for key in r.scan_iter("ranking:variacao:*"):
         r.delete(key)
@@ -243,9 +287,14 @@ def batch_rankings_variacao(db, r: Redis) -> None:
 
 
 def batch_timeseries(db, r: Redis) -> None:
-    """
-    TS ts:preco_avg:{combustivel}:{uf}  →  preço médio diário por combustível/UF
-    Agrega eventos_preco por dia+combustivel+uf e salva como série temporal.
+    """Popula as séries temporais de preço médio diário no Redis.
+
+    Agrega ``eventos_preco`` por dia, combustível e UF (via ``$lookup`` em postos)
+    e insere cada ponto em ``ts:preco_avg:{combustivel}:{uf}`` usando RedisTimeSeries.
+
+    Args:
+        db: Banco de dados MongoDB (objeto ``Database`` do PyMongo).
+        r (Redis): Cliente Redis ativo.
     """
     for key in r.scan_iter("ts:preco_avg:*"):
         r.delete(key)
@@ -298,8 +347,15 @@ def batch_timeseries(db, r: Redis) -> None:
 
 
 def batch_stats_globais(db, r: Redis) -> None:
-    """
-    HASH stats:preco_medio  →  {combustivel}:min / avg / max
+    """Popula as estatísticas globais de preço por combustível no Redis.
+
+    Agrega ``eventos_preco`` calculando mínimo, média, máximo e contagem por
+    combustível e armazena em ``stats:preco_medio`` (HASH, campos ``{comb}:min``,
+    ``{comb}:avg``, ``{comb}:max``, ``{comb}:count``).
+
+    Args:
+        db: Banco de dados MongoDB (objeto ``Database`` do PyMongo).
+        r (Redis): Cliente Redis ativo.
     """
     pipeline = [
         {
@@ -331,6 +387,12 @@ def batch_stats_globais(db, r: Redis) -> None:
 
 
 def run_batch(db, r: Redis) -> None:
+    """Executa todas as etapas do batch em sequência e registra o tempo total.
+
+    Args:
+        db: Banco de dados MongoDB (objeto ``Database`` do PyMongo).
+        r (Redis): Cliente Redis ativo.
+    """
     log.info("=" * 50)
     log.info("BATCH INICIO — MongoDB → Redis")
     log.info("=" * 50)
@@ -351,7 +413,15 @@ def run_batch(db, r: Redis) -> None:
 
 
 def handle_novo_evento(r: Redis, doc: dict[str, Any]) -> None:
-    """Atualiza rankings e TimeSeries em tempo real para um novo evento de preço."""
+    """Processa um novo evento de preço e atualiza as estruturas Redis correspondentes.
+
+    Resolve a UF do posto via ``HGET`` (O(1)) e atualiza o ranking de preços,
+    o ranking de variação e a série temporal sem acessar o MongoDB.
+
+    Args:
+        r (Redis): Cliente Redis ativo.
+        doc (dict[str, Any]): Documento completo do evento (``fullDocument`` do Change Stream).
+    """
     pid = str(doc.get("posto_id", ""))
     comb = str(doc.get("combustivel", ""))
     preco = float(doc.get("preco_novo", 0))
@@ -377,6 +447,16 @@ def handle_novo_evento(r: Redis, doc: dict[str, Any]) -> None:
 
 
 def run_change_stream(db, r: Redis) -> None:
+    """Escuta o Change Stream de ``eventos_preco`` e processa eventos continuamente.
+
+    Filtra apenas operações de ``insert`` e delega cada evento a
+    :func:`handle_novo_evento`. Reconecta automaticamente com backoff de 3s
+    em caso de falha de rede ou failover do replica set.
+
+    Args:
+        db: Banco de dados MongoDB (objeto ``Database`` do PyMongo).
+        r (Redis): Cliente Redis ativo.
+    """
     log.info("[STREAM] Aguardando eventos em eventos_preco (Change Stream)...")
     col = db.eventos_preco
     while True:
@@ -398,6 +478,12 @@ def run_change_stream(db, r: Redis) -> None:
 
 
 def main() -> None:
+    """Ponto de entrada do pipeline. Conecta ao MongoDB e Redis, executa o batch
+    e opcionalmente inicia o Change Stream.
+
+    Raises:
+        SystemExit: Se a conexão com MongoDB ou Redis falhar.
+    """
     import argparse
 
     parser = argparse.ArgumentParser(

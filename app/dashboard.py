@@ -56,10 +56,25 @@ CIDADES_REFERENCIA = {
 
 @st.cache_resource
 def get_redis() -> Redis:
+    """Cria e retorna uma conexão com o Redis (cacheada pelo Streamlit).
+
+    Returns:
+        Redis: Cliente Redis conectado ao host e porta configurados.
+    """
     return Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 
 def posto_info(r: Redis, posto_id: str) -> dict[str, str]:
+    """Retorna os dados cadastrais de um posto a partir do HASH Redis.
+
+    Args:
+        r (Redis): Cliente Redis ativo.
+        posto_id (str): Identificador do posto (ObjectId como string).
+
+    Returns:
+        dict[str, str]: Dicionário com ``nome``, ``bandeira``, ``cidade`` e ``uf``.
+            Retorna valores padrão caso o HASH não exista.
+    """
     data = r.hgetall(f"posto:{posto_id}")
     return data or {
         "nome": posto_id[:12] + "...",
@@ -75,6 +90,14 @@ def posto_info(r: Redis, posto_id: str) -> dict[str, str]:
 
 
 def page_resumo(r: Redis) -> None:
+    """Renderiza o painel de resumo global de preços por combustível.
+
+    Lê ``stats:preco_medio`` (HASH) e exibe métricas de mínimo, médio e máximo
+    para cada combustível, com gráfico de barras comparativo.
+
+    Args:
+        r (Redis): Cliente Redis ativo.
+    """
     st.header("Resumo Global de Preços")
 
     mapping = r.hgetall("stats:preco_medio")
@@ -140,6 +163,14 @@ def page_resumo(r: Redis) -> None:
 
 
 def page_rankings(r: Redis) -> None:
+    """Renderiza o painel de ranking de menores preços por combustível e estado.
+
+    Lê ``ranking:preco:{combustivel}:{uf}`` (ZSET) e exibe os N postos mais
+    baratos em gráfico de barras horizontais com filtros interativos.
+
+    Args:
+        r (Redis): Cliente Redis ativo.
+    """
     st.header("Ranking de Preços por Combustível")
 
     col1, col2, col3 = st.columns(3)
@@ -188,6 +219,14 @@ def page_rankings(r: Redis) -> None:
 
 
 def page_buscas(r: Redis) -> None:
+    """Renderiza o painel de volume de buscas por cidade.
+
+    Lê ``ranking:buscas`` (ZSET) e exibe as cidades com maior demanda
+    em gráfico de barras horizontais coloridas por UF.
+
+    Args:
+        r (Redis): Cliente Redis ativo.
+    """
     st.header("Cidades com Maior Volume de Buscas")
 
     top_n = st.slider("Quantidade de cidades", 5, 30, 15)
@@ -225,6 +264,14 @@ def page_buscas(r: Redis) -> None:
 
 
 def page_variacao(r: Redis) -> None:
+    """Renderiza o painel de postos com maior variação absoluta de preço.
+
+    Lê ``ranking:variacao:{combustivel}`` (ZSET, ordem decrescente) e exibe
+    os postos com maior oscilação para o combustível selecionado.
+
+    Args:
+        r (Redis): Cliente Redis ativo.
+    """
     st.header("Postos com Maior Variação de Preço")
 
     col1, col2 = st.columns(2)
@@ -269,6 +316,14 @@ def page_variacao(r: Redis) -> None:
 
 
 def page_timeseries(r: Redis) -> None:
+    """Renderiza o painel de evolução temporal do preço médio diário.
+
+    Executa ``TS.RANGE`` em ``ts:preco_avg:{combustivel}:{uf}`` e plota a série
+    histórica em gráfico de linha com métricas de variação no período.
+
+    Args:
+        r (Redis): Cliente Redis ativo.
+    """
     st.header("Evolução do Preço Médio ao Longo do Tempo")
 
     col1, col2 = st.columns(2)
@@ -319,6 +374,14 @@ def page_timeseries(r: Redis) -> None:
 
 
 def page_geo(r: Redis) -> None:
+    """Renderiza o painel de busca geográfica de postos por raio.
+
+    Executa ``GEOSEARCH`` em ``geo:postos`` a partir de uma cidade de referência
+    e exibe os resultados em mapa nativo do Streamlit e tabela com distância em km.
+
+    Args:
+        r (Redis): Cliente Redis ativo.
+    """
     st.header("Busca Geográfica de Postos (Redis GEO)")
 
     col1, col2 = st.columns(2)

@@ -38,7 +38,6 @@ Pipeline de dados em tempo quase real usando **MongoDB como fonte de eventos** e
 │   └── pipeline_radar.py
 ├── seed/                   # Geração de dados no MongoDB
 │   └── seed_radar_combustivel.py
-├── docs/                   # Documentação e enunciado
 ├── docker-compose.yml
 ├── pyproject.toml
 └── .env.example
@@ -57,37 +56,40 @@ Pipeline de dados em tempo quase real usando **MongoDB como fonte de eventos** e
 docker compose up -d
 ```
 
-Aguarde ~30s até todos os serviços ficarem healthy.
+O Compose orquestra tudo automaticamente na seguinte ordem:
+
+| Etapa | Container | Ação |
+|---|---|---|
+| 1 | `lab-mongo` | Sobe MongoDB e aguarda ficar healthy |
+| 2 | `lab-mongo-init` | Inicializa o replica set `rs0` |
+| 3 | `lab-seed` | Popula 500 mil documentos no MongoDB (skip se já existir) |
+| 4 | `lab-pipeline` | Executa batch → Redis e inicia Change Stream |
+| 4 | `lab-redis` | Sobe Redis Stack em paralelo com o seed |
+| 5 | `lab-streamlit` | Inicia o dashboard após seed concluído |
+
+O pipeline (batch) leva ~2 minutos. O Streamlit estará disponível em `:8501` enquanto isso, e exibirá os dados assim que o pipeline concluir.
+
+### 2. Acessar o dashboard
+
+```
+http://localhost:8501
+```
 
 | Container | Porta | Descrição |
 |---|---|---|
 | `lab-mongo` | 27017 | MongoDB 7 com replica set `rs0` |
 | `lab-redis` | 6379 / 8001 | Redis Stack (RedisInsight em :8001) |
-| `lab-app` | — | Python com dependências instaladas |
+| `lab-pipeline` | — | Batch + Change Stream contínuo |
 | `lab-streamlit` | 8501 | Dashboard Streamlit |
 
-### 2. Popular o MongoDB
+### 3. Rodar o pipeline manualmente (opcional)
 
 ```bash
-docker compose exec app python seed/seed_radar_combustivel.py
-```
-
-Insere 500 mil documentos distribuídos em 5 coleções. Leva ~2-3 minutos.
-
-### 3. Rodar o pipeline
-
-```bash
-# Batch + Change Stream (deixe rodando em outro terminal)
-docker compose exec app python pipeline/pipeline_radar.py
+# Modo completo: batch + change stream (fica rodando)
+docker compose exec pipeline python pipeline/pipeline_radar.py
 
 # Apenas batch
-docker compose exec app python pipeline/pipeline_radar.py --batch-only
-```
-
-### 4. Acessar o dashboard
-
-```
-http://localhost:8501
+docker compose exec pipeline python pipeline/pipeline_radar.py --batch-only
 ```
 
 ## Estruturas Redis geradas
@@ -123,6 +125,13 @@ ZREVRANGE ranking:buscas 0 9 WITHSCORES
 HGETALL stats:preco_medio
 GEOSEARCH geo:postos FROMLONLAT -46.6333 -23.5505 BYRADIUS 50 km ASC COUNT 10
 TS.RANGE ts:preco_avg:GASOLINA_COMUM:SP - +
+```
+
+## MongoDB Compass
+
+Conecte diretamente via:
+```
+mongodb://localhost:27017/?directConnection=true
 ```
 
 ## Rodar com uv (local)

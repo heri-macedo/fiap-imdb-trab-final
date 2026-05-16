@@ -53,6 +53,27 @@ services:
       mongo-init:
         condition: service_completed_successfully
 
+  pipeline:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: lab-pipeline
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/?directConnection=true
+      - MONGO_DB=radar_combustivel
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    command: ["python", "pipeline/pipeline_radar.py"]
+    restart: "no"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   streamlit:
     build:
       context: .

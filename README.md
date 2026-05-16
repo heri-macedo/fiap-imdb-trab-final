@@ -6,26 +6,7 @@ Pipeline de dados em tempo quase real usando **MongoDB como fonte de eventos** e
 
 ## Arquitetura
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        Docker Compose                            │
-│                                                                  │
-│  ┌─────────────┐    ┌──────────────────────┐    ┌────────────┐  │
-│  │   MongoDB   │    │  pipeline_radar.py   │    │   Redis    │  │
-│  │  (rs0)      │───▶│                      │───▶│  Stack     │  │
-│  │             │    │  [1] Batch           │    │            │  │
-│  │  postos     │    │  [2] Change Stream   │    │  HASH      │  │
-│  │  eventos_   │◀───│      (tempo real)    │    │  ZSET      │  │
-│  │  preco      │    └──────────────────────┘    │  GEO       │  │
-│  │  buscas_    │                                │  TimeSeries│  │
-│  │  usuarios   │                                └─────┬──────┘  │
-│  │  avaliacoes │                                      │          │
-│  │  localizacoes│                           ┌─────────▼──────┐  │
-│  └─────────────┘                            │   Streamlit    │  │
-│                                             │  :8501         │  │
-│                                             └────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
-```
+![Diagrama de arquitetura](docs/arch-diagram.jpeg)
 
 ## Estrutura do projeto
 
@@ -38,6 +19,7 @@ Pipeline de dados em tempo quase real usando **MongoDB como fonte de eventos** e
 │   └── pipeline_radar.py
 ├── seed/                   # Geração de dados no MongoDB
 │   └── seed_radar_combustivel.py
+├── docs/                   # Prints e diagrama
 ├── docker-compose.yml
 ├── pyproject.toml
 └── .env.example
@@ -82,15 +64,9 @@ http://localhost:8501
 | `lab-pipeline` | — | Batch + Change Stream contínuo |
 | `lab-streamlit` | 8501 | Dashboard Streamlit |
 
-### 3. Rodar o pipeline manualmente (opcional)
+## Pipeline em execução
 
-```bash
-# Modo completo: batch + change stream (fica rodando)
-docker compose exec pipeline python pipeline/pipeline_radar.py
-
-# Apenas batch
-docker compose exec pipeline python pipeline/pipeline_radar.py --batch-only
-```
+![Log do pipeline](docs/logs_pipeline.jpeg)
 
 ## Estruturas Redis geradas
 
@@ -104,16 +80,25 @@ docker compose exec pipeline python pipeline/pipeline_radar.py --batch-only
 | `stats:preco_medio` | HASH | Min/avg/max por combustível |
 | `ts:preco_avg:{comb}:{uf}` | Time Series | Preço médio diário |
 
-## Painéis do Dashboard
+## Dashboard
 
-| Painel | Estrutura Redis | Conteúdo |
-|---|---|---|
-| 📊 Resumo Global | `stats:preco_medio` | Preço mín/médio/máx por combustível |
-| ⛽ Rankings de Preço | `ranking:preco:*` | Top N postos mais baratos por combustível e estado |
-| 🔍 Volume de Buscas | `ranking:buscas` | Cidades com maior volume de buscas |
-| 📈 Variação de Preço | `ranking:variacao:*` | Postos com maior oscilação recente |
-| 🕐 Série Temporal | `ts:preco_avg:*` | Evolução do preço médio diário |
-| 🗺️ Busca Geográfica | `geo:postos` | Postos próximos via GEOSEARCH + mapa |
+### Resumo Global
+![Resumo Global](docs/pag_resumo_global.jpeg)
+
+### Rankings de Preço
+![Rankings de Preço](docs/pag_ranking_precos.jpeg)
+
+### Volume de Buscas
+![Volume de Buscas](docs/pag_vol_buscas.jpeg)
+
+### Variação de Preço
+![Variação de Preço](docs/pag_variacao_preco.jpeg)
+
+### Evolução de Preço (Série Temporal)
+![Série Temporal](docs/pag_evol_preco_medio.jpeg)
+
+### Busca Geográfica
+![Busca Geográfica](docs/pag_geografica.jpeg)
 
 ## Consultas Redis de demonstração
 
@@ -129,7 +114,6 @@ TS.RANGE ts:preco_avg:GASOLINA_COMUM:SP - +
 
 ## MongoDB Compass
 
-Conecte diretamente via:
 ```
 mongodb://localhost:27017/?directConnection=true
 ```

@@ -5,6 +5,6 @@ __pycache__/
 .venv/
 uv.lock
 
-/docs
+docs/*.html
 /.claude
 /.vscode

@@ -19,7 +19,7 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-    restart: on-failure
+    restart: "no"
     command: ["mongosh", "--host", "mongo:27017", "--quiet", "--eval", "try { rs.status() } catch(e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]}) }"]
 
   redis:
@@ -50,8 +50,8 @@ services:
     command: ["python", "seed/seed_radar_combustivel.py"]
     restart: "no"
     depends_on:
-      mongo:
-        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
 
   streamlit:
     build:
